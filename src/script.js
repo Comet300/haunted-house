@@ -1,11 +1,19 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { Timer } from "three/addons/misc/Timer.js";
 import GUI from "lil-gui";
+
+/**
+ * * Conventions:
+ * Base unit: meter
+ * Floor level: 0
+ */
+const meter = 1; // base unit. Only defined for readability purposes.
 
 /**
  * Base
  */
-// Debug
+// Debug tools
 const gui = new GUI();
 
 // Canvas
@@ -13,6 +21,16 @@ const canvas = document.querySelector("canvas.webgl");
 
 // Scene
 const scene = new THREE.Scene();
+
+/**
+ * Floor
+ */
+const floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(20, 20),
+  new THREE.MeshStandardMaterial({ roughness: 0.7 })
+);
+floor.rotateX(-Math.PI / 2); // -90 deg around X axis
+scene.add(floor);
 
 /**
  * House
@@ -86,7 +104,16 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
+/**
+ * Animate
+ */
+const timer = new Timer();
+
 const tick = () => {
+  // Timer
+  timer.update();
+  const elapsedTime = timer.getElapsed();
+
   // Update controls
   controls.update();
 
