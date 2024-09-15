@@ -50,6 +50,110 @@ window.addEventListener("resize", () => {
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
+// Textures
+// ---------
+const textureLodaer = new THREE.TextureLoader();
+
+/**
+ * Async loads a teture.
+ *
+ * Automatically enables S T wrapping.
+ *
+ * @param {string} url
+ * @returns {Promise<THREE.Texture>}
+ */
+const loadTextureAsync = async (url) => {
+  const texture = await textureLodaer.loadAsync(url);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+};
+
+// My preference compared to having all variables named "xxxxTexture"
+const textures = {};
+
+// floor textures
+textures.floorAlpha = await loadTextureAsync("./ground/alpha.jpg");
+textures.floorDiffusion = await loadTextureAsync(
+  "./ground/leafy_grass_diff_1k.jpg"
+); // a.k.a. Color
+textures.floorDiffusion.colorSpace = THREE.SRGBColorSpace;
+textures.floorDisplacement = await loadTextureAsync(
+  "./ground/leafy_grass_disp_1k.jpg"
+);
+textures.floorNormal = await loadTextureAsync(
+  "./ground/leafy_grass_nor_gl_1k.jpg"
+);
+textures.floorARM = await loadTextureAsync("./ground/leafy_grass_arm_1k.jpg");
+
+textures.floorDiffusion.repeat.set(8, 8); // how many copies of itself should be on X and Z axis
+textures.floorARM.repeat.set(8, 8);
+textures.floorDisplacement.repeat.set(8, 8);
+textures.floorNormal.repeat.set(8, 8);
+
+// wall textures
+textures.wallDiffusion = await loadTextureAsync(
+  "./wall/red_brick_plaster_patch_02_diff_1k.jpg"
+);
+textures.wallARM = await loadTextureAsync(
+  "./wall/red_brick_plaster_patch_02_arm_1k.jpg"
+);
+textures.wallNormal = await loadTextureAsync(
+  "./wall/red_brick_plaster_patch_02_nor_gl_1k.jpg"
+);
+
+// roof textures
+
+textures.roofDiffusion = await loadTextureAsync(
+  "./roof/roof_slates_02_diff_1k.jpg"
+);
+textures.roofARM = await loadTextureAsync("./roof/roof_slates_02_arm_1k.jpg");
+textures.roofNormal = await loadTextureAsync(
+  "./roof/roof_slates_02_nor_gl_1k.jpg"
+);
+
+// KNOWN BUG: light bounces off weirdly, texture skewed.
+// Solution: use custom blender geometry with proper UV mapping.
+
+textures.roofDiffusion.repeat.set(3, 1); // how many copies of itself should be on X and Z axis
+textures.roofARM.repeat.set(3, 1);
+textures.roofNormal.repeat.set(3, 1);
+
+// bushe textures
+textures.bushDiffusion = await loadTextureAsync(
+  "./bush/leaves_forest_ground_diff_1k.jpg"
+);
+textures.bushARM = await loadTextureAsync(
+  "./bush/leaves_forest_ground_arm_1k.jpg"
+);
+textures.bushNormal = await loadTextureAsync(
+  "./bush/leaves_forest_ground_nor_gl_1k.jpg"
+);
+textures.bushDisplacement = await loadTextureAsync(
+  "./bush/leaves_forest_ground_disp_1k.jpg"
+);
+
+// grave textures
+textures.graveDiffusion = await loadTextureAsync(
+  "./grave/plastered_stone_wall_diff_1k.jpg"
+);
+textures.graveARM = await loadTextureAsync(
+  "./grave/plastered_stone_wall_arm_1k.jpg"
+);
+textures.graveNormal = await loadTextureAsync(
+  "./grave/plastered_stone_wall_nor_gl_1k.jpg"
+);
+
+// door textures
+textures.doorDiffusion = await loadTextureAsync("./door/color.jpg");
+textures.doorAlpha = await loadTextureAsync("./door/alpha.jpg");
+textures.doorAO = await loadTextureAsync("./door/ambientOcclusion.jpg");
+textures.doorDisplacement = await loadTextureAsync("./door/normal.jpg");
+textures.doorMetalness = await loadTextureAsync("./door/metalness.jpg");
+textures.doorRoughness = await loadTextureAsync("./door/roughness.jpg");
+textures.doorNormal = await loadTextureAsync("./door/normal.jpg");
+
 /**
  * Scene
  */
@@ -62,11 +166,35 @@ const scene = new THREE.Scene();
  * Floor
  */
 const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(20 * meter, 20 * meter),
-  new THREE.MeshStandardMaterial({ roughness: 0.7 })
+  new THREE.PlaneGeometry(20 * meter, 20 * meter, 100, 100),
+  new THREE.MeshStandardMaterial({
+    alphaMap: textures.floorAlpha,
+    transparent: true,
+    map: textures.floorDiffusion,
+    displacementMap: textures.floorDisplacement,
+    displacementScale: 0.3,
+    displacementBias: -0.15,
+    normalMap: textures.floorNormal,
+    aoMap: textures.floorARM,
+    roughnessMap: textures.floorARM,
+    metalnessMap: textures.floorARM,
+  })
 );
 floor.rotateX(-Math.PI / 2); // -90 deg around X axis
 scene.add(floor);
+
+gui
+  .add(floor.material, "displacementBias")
+  .min(0)
+  .max(1)
+  .step(0.001)
+  .name("Ground displacement scale");
+gui
+  .add(floor.material, "displacementScale")
+  .min(-1)
+  .max(1)
+  .step(0.001)
+  .name("Ground displacement bias");
 
 /**
  * House
@@ -88,7 +216,13 @@ const walls = new THREE.Mesh(
     wallsMeasurements.height,
     wallsMeasurements.depth
   ),
-  new THREE.MeshStandardMaterial()
+  new THREE.MeshStandardMaterial({
+    map: textures.wallDiffusion,
+    aoMap: textures.wallARM,
+    roughnessMap: textures.wallARM,
+    metalnessMap: textures.wallARM,
+    normalMap: textures.wallNormal,
+  })
 );
 house.add(walls);
 
@@ -103,7 +237,13 @@ const roof = new THREE.Mesh(
     roofMeasurements.height,
     4
   ),
-  new THREE.MeshStandardMaterial()
+  new THREE.MeshStandardMaterial({
+    map: textures.roofDiffusion,
+    normalMap: textures.roofNormal,
+    aoMap: textures.roofARM,
+    metalnessMap: textures.roofARM,
+    roughnessMap: textures.roofARM,
+  })
 );
 roof.rotateY(Math.PI / 4);
 roof.position.y = wallsMeasurements.height - 0.75 * meter;
@@ -112,7 +252,17 @@ house.add(roof);
 // door
 const door = new THREE.Mesh(
   new THREE.PlaneGeometry(2.2, 2.2),
-  new THREE.MeshStandardMaterial()
+  new THREE.MeshStandardMaterial({
+    map: textures.doorDiffusion,
+    aoMap: textures.doorAO,
+    metalnessMap: textures.doorMetalness,
+    roughnessMap: textures.doorRoughness,
+    normalMap: textures.doorNormal,
+    transparent: true,
+    alphaMap: textures.doorAlpha,
+    displacementMap: textures.doorDisplacement,
+    displacementScale: 0.1,
+  })
 );
 door.position.y = 0;
 door.position.z = 2 * meter + 0.01;
@@ -120,9 +270,18 @@ house.add(door);
 
 house.position.y = wallsMeasurements.height / 2; // move house above the ground
 
-// bushes
+// Bushes
 const bushGeometry = new THREE.SphereGeometry(1, 16, 16);
-const bushMaterial = new THREE.MeshStandardMaterial();
+const bushMaterial = new THREE.MeshStandardMaterial({
+  color: 0xccffcc,
+  map: textures.bushDiffusion,
+  aoMap: textures.bushARM,
+  metalnessMap: textures.bushARM,
+  roughnessMap: textures.bushARM,
+  normalMap: textures.bushNormal,
+  displacementMap: textures.bushDisplacement,
+  displacementScale: 0.2,
+});
 
 const bush1 = new THREE.Mesh(bushGeometry, bushMaterial);
 bush1.scale.setScalar(0.5);
@@ -145,7 +304,14 @@ house.add(bush1, bush2, bush3, bush4);
 // Graves
 
 const graveGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.2);
-const graveMaterial = new THREE.MeshStandardMaterial();
+const graveMaterial = new THREE.MeshStandardMaterial({
+  map: textures.graveDiffusion,
+  aoMap: textures.graveARM,
+  metalnessMap: textures.graveARM,
+  roughnessMap: textures.graveARM,
+  normalMap: textures.graveNormal,
+  displacementScale: 0.2,
+});
 const graves = new THREE.Group();
 
 const createGraveInGroup = (group) => {
