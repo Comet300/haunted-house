@@ -115,7 +115,6 @@ textures.roofNormal = await loadTextureAsync(
 
 // KNOWN BUG: light bounces off weirdly, texture skewed.
 // Solution: use custom blender geometry with proper UV mapping.
-
 textures.roofDiffusion.repeat.set(3, 1); // how many copies of itself should be on X and Z axis
 textures.roofARM.repeat.set(3, 1);
 textures.roofNormal.repeat.set(3, 1);
@@ -264,7 +263,7 @@ const door = new THREE.Mesh(
     displacementScale: 0.1,
   })
 );
-door.position.y = 0;
+door.position.y = -0.2;
 door.position.z = 2 * meter + 0.01;
 house.add(door);
 
@@ -347,15 +346,24 @@ scene.add(graves);
 /**
  * Ambient light
  */
-const ambientLight = new THREE.AmbientLight("#ffffff", 0.5);
+const ambientLight = new THREE.AmbientLight("#87cefe", 0.5);
 scene.add(ambientLight);
 
 /**
  * Directional light
  */
-const directionalLight = new THREE.DirectionalLight("#ffffff", 1.5);
+const directionalLight = new THREE.DirectionalLight("#ffffff", 0.3);
 directionalLight.position.set(3 * meter, 2 * meter, -8 * meter);
 scene.add(directionalLight);
+
+/**
+ * Door light
+ */
+// KNOWN BUG: Light bounces off weirdly
+// Solution: use custom blender geometry with proper UV mapping.
+const doorLight = new THREE.PointLight("#ff7d46", 5);
+doorLight.position.set(0, 0.8, 2.3);
+house.add(doorLight);
 
 // Camera
 // -------
