@@ -2,13 +2,16 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Timer } from "three/addons/misc/Timer.js";
 import GUI from "lil-gui";
+import { Sky } from "three/addons/objects/Sky.js";
 
 // Setup & Config
 // --------------
 
 /**
  * * Conventions:
+ *
  * Base unit: meter
+ *
  * Floor level: 0
  */
 const meter = 1; // base unit. Only defined for readability purposes.
@@ -26,6 +29,7 @@ const canvas = document.querySelector("canvas.webgl");
  */
 const renderer = new THREE.WebGLRenderer({
   canvas: canvas,
+  antialias: true,
 });
 
 const sizes = {
@@ -55,18 +59,20 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 const textureLodaer = new THREE.TextureLoader();
 
 /**
- * Async loads a teture.
+ * Async loads a texture.
  *
  * Automatically enables S T wrapping.
  *
  * @param {string} url
  * @returns {Promise<THREE.Texture>}
  */
-const loadTextureAsync = async (url) => {
+const loadTextureAsync = async (url, wrapST = false) => {
   const texture = await textureLodaer.loadAsync(url);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
+  if (wrapST) {
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+  }
   return texture;
 };
 
@@ -76,21 +82,25 @@ const textures = {};
 // floor textures
 textures.floorAlpha = await loadTextureAsync("./ground/alpha.jpg");
 textures.floorDiffusion = await loadTextureAsync(
-  "./ground/leafy_grass_diff_1k.jpg"
+  "./ground/coast_sand_rocks_02_diff_1k.webp",
+  true
 ); // a.k.a. Color
-textures.floorDiffusion.colorSpace = THREE.SRGBColorSpace;
+textures.floorARM = await loadTextureAsync(
+  "./ground/coast_sand_rocks_02_arm_1k.webp",
+  true
+);
 textures.floorDisplacement = await loadTextureAsync(
-  "./ground/leafy_grass_disp_1k.jpg"
+  "./ground/coast_sand_rocks_02_disp_1k.webp",
+  true
 );
 textures.floorNormal = await loadTextureAsync(
-  "./ground/leafy_grass_nor_gl_1k.jpg"
+  "./ground/coast_sand_rocks_02_nor_gl_1k.webp",
+  true
 );
-textures.floorARM = await loadTextureAsync("./ground/leafy_grass_arm_1k.jpg");
 
 textures.floorDiffusion.repeat.set(8, 8); // how many copies of itself should be on X and Z axis
 textures.floorARM.repeat.set(8, 8);
 textures.floorDisplacement.repeat.set(8, 8);
-textures.floorNormal.repeat.set(8, 8);
 
 // wall textures
 textures.wallDiffusion = await loadTextureAsync(
@@ -106,11 +116,16 @@ textures.wallNormal = await loadTextureAsync(
 // roof textures
 
 textures.roofDiffusion = await loadTextureAsync(
-  "./roof/roof_slates_02_diff_1k.jpg"
+  "./roof/roof_slates_02_diff_1k.jpg",
+  true
 );
-textures.roofARM = await loadTextureAsync("./roof/roof_slates_02_arm_1k.jpg");
+textures.roofARM = await loadTextureAsync(
+  "./roof/roof_slates_02_arm_1k.jpg",
+  true
+);
 textures.roofNormal = await loadTextureAsync(
-  "./roof/roof_slates_02_nor_gl_1k.jpg"
+  "./roof/roof_slates_02_nor_gl_1k.jpg",
+  true
 );
 
 // KNOWN BUG: light bounces off weirdly, texture skewed.
@@ -170,13 +185,13 @@ const floor = new THREE.Mesh(
     alphaMap: textures.floorAlpha,
     transparent: true,
     map: textures.floorDiffusion,
-    displacementMap: textures.floorDisplacement,
-    displacementScale: 0.3,
-    displacementBias: -0.15,
-    normalMap: textures.floorNormal,
     aoMap: textures.floorARM,
     roughnessMap: textures.floorARM,
     metalnessMap: textures.floorARM,
+    displacementMap: textures.floorDisplacement,
+    normalMap: textures.floorNormal,
+    displacementScale: 0.3,
+    displacementBias: -0.2,
   })
 );
 floor.rotateX(-Math.PI / 2); // -90 deg around X axis
@@ -223,6 +238,7 @@ const walls = new THREE.Mesh(
     normalMap: textures.wallNormal,
   })
 );
+walls.position.y += 1.25;
 house.add(walls);
 
 // roof
@@ -245,7 +261,7 @@ const roof = new THREE.Mesh(
   })
 );
 roof.rotateY(Math.PI / 4);
-roof.position.y = wallsMeasurements.height - 0.75 * meter;
+roof.position.y = wallsMeasurements.height + 0.75 * meter;
 house.add(roof);
 
 // door
@@ -264,11 +280,11 @@ const door = new THREE.Mesh(
     displacementScale: 0.01,
   })
 );
-door.position.y = -0.2;
-door.position.z = 2 * meter + 0.01;
+door.position.y = 1;
+door.position.z = 2 + 0.01;
 house.add(door);
 
-house.position.y = wallsMeasurements.height / 2; // move house above the ground
+house.position.y = -0.2; // Y correction - prevent house from floating
 
 // Bushes
 const bushGeometry = new THREE.SphereGeometry(1, 16, 16);
@@ -285,19 +301,19 @@ const bushMaterial = new THREE.MeshStandardMaterial({
 
 const bush1 = new THREE.Mesh(bushGeometry, bushMaterial);
 bush1.scale.setScalar(0.5);
-bush1.position.set(0.8 * meter, -1.2 * meter, 2.2 * meter);
+bush1.position.set(0.8 * meter, 0.2 * meter, 2.2 * meter);
 
 const bush2 = new THREE.Mesh(bushGeometry, bushMaterial);
 bush2.scale.setScalar(0.25);
-bush2.position.set(1.3 * meter, -1.1 * meter, 2.1 * meter);
+bush2.position.set(1.4 * meter, 0.1 * meter, 2.1 * meter);
 
 const bush3 = new THREE.Mesh(bushGeometry, bushMaterial);
 bush3.scale.setScalar(0.4);
-bush3.position.set(-0.8 * meter, -1.1 * meter, 2.2 * meter);
+bush3.position.set(-0.8 * meter, 0.1 * meter, 2.2 * meter);
 
 const bush4 = new THREE.Mesh(bushGeometry, bushMaterial);
 bush4.scale.setScalar(0.15);
-bush4.position.set(-1 * meter, -1.15 * meter, 2.6 * meter);
+bush4.position.set(-1 * meter, 0.05 * meter, 2.6 * meter);
 
 house.add(bush1, bush2, bush3, bush4);
 
@@ -353,8 +369,8 @@ scene.add(ambientLight);
 /**
  * Directional light
  */
-const directionalLight = new THREE.DirectionalLight("#ffffff", 0.3);
-directionalLight.position.set(3 * meter, 2 * meter, -8 * meter);
+const directionalLight = new THREE.DirectionalLight(0x86cdff, 1);
+directionalLight.position.set(-3 * meter, 2 * meter, 8 * meter);
 scene.add(directionalLight);
 
 /**
@@ -363,7 +379,7 @@ scene.add(directionalLight);
 // KNOWN BUG: Light bounces off weirdly
 // Solution: use custom blender geometry with proper UV mapping.
 const doorLight = new THREE.PointLight("#ff7d46", 5);
-doorLight.position.set(0, 0.8, 2.3);
+doorLight.position.set(0, 2.2, 2.5);
 house.add(doorLight);
 
 /**
@@ -392,6 +408,69 @@ scene.add(camera);
 // --------
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
+
+// Shadows
+// ---------
+
+renderer.shadowMap.enabled = true; // Enable shadow maps
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Optional: set shadow map type
+
+// Cast and receive
+directionalLight.castShadow = true;
+ghost1.castShadow = true;
+ghost2.castShadow = true;
+ghost3.castShadow = true;
+
+walls.castShadow = true;
+walls.receiveShadow = true;
+roof.castShadow = true;
+floor.receiveShadow = true;
+
+for (const grave of graves.children) {
+  grave.castShadow = true;
+  grave.receiveShadow = true;
+}
+
+// Mappings
+directionalLight.shadow.mapSize.width = 256;
+directionalLight.shadow.mapSize.height = 256;
+directionalLight.shadow.camera.top = 8;
+directionalLight.shadow.camera.right = 8;
+directionalLight.shadow.camera.bottom = -8;
+directionalLight.shadow.camera.left = -8;
+directionalLight.shadow.camera.near = 1;
+directionalLight.shadow.camera.far = 20;
+
+ghost1.shadow.mapSize.width = 256;
+ghost1.shadow.mapSize.height = 256;
+ghost1.shadow.camera.far = 10;
+
+ghost2.shadow.mapSize.width = 256;
+ghost2.shadow.mapSize.height = 256;
+ghost2.shadow.camera.far = 10;
+
+ghost3.shadow.mapSize.width = 256;
+ghost3.shadow.mapSize.height = 256;
+ghost3.shadow.camera.far = 10;
+
+// Sky
+// ----------
+
+const sky = new Sky();
+sky.scale.set(100, 100, 100);
+scene.add(sky);
+
+sky.material.uniforms["turbidity"].value = 10;
+sky.material.uniforms["rayleigh"].value = 3;
+sky.material.uniforms["mieCoefficient"].value = 0.1;
+sky.material.uniforms["mieDirectionalG"].value = 0.95;
+sky.material.uniforms["sunPosition"].value.set(0.3, -0.038, -0.95);
+
+/**
+ * Fog
+ */
+// scene.fog = new THREE.Fog('#04343f', 1, 13)
+scene.fog = new THREE.FogExp2("#04343f", 0.1);
 
 // Animations
 // ----------
